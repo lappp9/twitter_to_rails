@@ -3,7 +3,7 @@ class UsersController < ApplicationController
   # GET /users.xml
   def self.consumer
     # The readkey and readsecret below are the values you get during registration
-    OAuth::Consumer.new("2GKxz71b7gT9Bow1N0nw", "kagE2iPJRo3MQeASPYEtGsD16z4lyxufszIaErj8w",{ :site=>"http://twitter.com" })
+    OAuth::Consumer.new("2GKxz71b7gT9Bow1N0nw", "kagE2iPJRo3MQeASPYEtGsD16z4lyxufszIaErj8w",{ :site => 'http://api.twitter.com', :request_endpoint => 'http://api.twitter.com', :sign_in => true})
   end
   
   def create
@@ -17,24 +17,60 @@ class UsersController < ApplicationController
   
   def callback
     @request_token = OAuth::RequestToken.new(UsersController.consumer, session[:request_token], session[:request_token_secret])
-    @accesstoken = @request_token.get_access_token
-    @response = UsersController.consumer.request(:get, '/account/verify_credentials.json', @access_token, {:scheme => :query_string})
+    @at = @request_token.get_access_token
+    @asecret = @at.secret
+    @atoken = @at.token
+    @ctoken = "2GKxz71b7gT9Bow1N0nw"
+    @csecret = "kagE2iPJRo3MQeASPYEtGsD16z4lyxufszIaErj8w"
+    Twitter.configure do |config|
+	  config.consumer_key       = @ctoken
+	  config.consumer_secret    = @csecret
+	  config.oauth_token        = @atoken
+	  config.oauth_token_secret = @asecret
+    end
+
+    client = Twitter::Client.new
+   # client.update('Test post from the console')
+
+
+   #@response = UsersController.consumer.request(:get, '/account/verify_credentials.json', @access_token, {:scheme => :query_string})
     
-    case @response
-    when Net::HTTPSuccess
-      user_info = JSON.parse(@response.body) 
-      unless user_info['screen_name']
+   # case @at
+   # when Net::HTTPSuccess
+      #user_info = JSON.parse(@response.body) 
+     /# unless user_info['screen_name']
         flash[:notice] = "Authentication Failed"
         redirect_to :action => :index
         return
-      end
-      @user = User.new({:screen_name => user_info['screen_name'], :token => @access_token.token, :secret => @access_token.secret})
+      end#/
+      screen_name = client.user.screen_name
+      @user = User.new({:screen_name => screen_name, :token => @atoken, :secret => @asecret})
       @user.save!
       redirect_to(@user)
-    else
+   /# else
       RAILS_DEFAULT_LOGGER.error "failed"
       flash[:notice] = "Failed"
       redirect_to :action => :index
+      return
+    end#/
+  end 
+ 
+  def show
+    @user = User.find(params[:id])
+    @access_token = OAuth::AccessToken.new(UsersController.consumer, @user.token, @user.secret)
+    RAILS_DEFAULT_LOGGER.error "Making OAuth Request"
+    @response = UsersController.consumer.request(:get, 'favorites.json', @acess_token, {:scheme => :query_string })
+    
+    case @response
+    when Net::HTTPSuccess
+      @favorites = JSON.parse(@response.body)
+      respond_to do |format|
+        format.html
+      end
+    else
+      RAILS_DEFAULT_LOGGER.error "Failed to get favs"
+      flash[:notice] = "Auth Failed"
+      redirect_to "users#new"
       return
     end
   end

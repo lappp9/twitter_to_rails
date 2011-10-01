@@ -7,7 +7,9 @@
   <%= csrf_meta_tag %>
 </head>
 <body>
-
+<%= debug(params) if Rails.env.development? %>
+<%= params %>
+<%= session %>
 <%= yield %>
 
 </body>
